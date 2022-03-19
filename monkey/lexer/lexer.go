@@ -4,6 +4,7 @@ import (
 	"monkey/token"
 )
 
+// 字句解析器
 type Lexer struct {
 	input        string
 	position     int  // 現在の文字chの位置
