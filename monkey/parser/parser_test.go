@@ -3,6 +3,7 @@ package parser
 import (
 	"monkey/ast"
 	"monkey/lexer"
+	"strconv"
 	"testing"
 )
 
@@ -203,4 +204,64 @@ func TestIntegerLiteralExpression(t *testing.T) {
 	if literal.TokenLiteral() != "5" {
 		t.Errorf("literal.TokenLiteral not %s. got=%s", "5", literal.TokenLiteral())
 	}
+}
+
+func TestParsingPrefixExpressions(t *testing.T) {
+	prefixTests := []struct {
+		input        string
+		operator     string
+		integerValue int64
+	}{
+		{"!5;", "!", 5},
+		{"-15;", "-", 15},
+	}
+
+	for _, tt := range prefixTests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("Program do not have enough statements. got=%d", len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		// インターフェイスが *ast.ExpressionStatement に実装されているかをチェック
+		// されていれば stmt に *ast.ExpressionStatement の値をセットする
+		if !ok {
+			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+		}
+
+		exp, ok := stmt.Expression.(*ast.PrefixExpression)
+		if !ok {
+			t.Fatalf("exp not *ast.PrefixExpression. got=%T", stmt.Expression)
+		}
+		if exp.Operator != tt.operator {
+			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.operator, exp.Operator)
+		}
+		if !testIntegerLiteral(t, exp.Right, tt.integerValue) {
+			return
+		}
+	}
+
+}
+
+func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
+	literal, ok := il.(*ast.IntegerLiteral)
+	if !ok {
+		t.Fatalf("exp not *ast.IntegerLiteral. got=%T", il)
+	}
+
+	// Value は値そのもの
+	if literal.Value != value {
+		t.Errorf("ident.Value is not %d. got=%d", value, literal.Value)
+	}
+
+	// TokenLiteral は数値の場合は数値そのもの
+	if literal.TokenLiteral() != strconv.FormatInt(value, 10) {
+		t.Errorf("literal.TokenLiteral not %s. got=%s", strconv.FormatInt(value, 10), literal.TokenLiteral())
+	}
+
+	return true
 }

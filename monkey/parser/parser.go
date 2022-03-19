@@ -134,10 +134,16 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	prefix := p.prefixParseFn[p.curToken.Type]
 	if prefix == nil {
+		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
 	}
 	leftExp := prefix()
 	return leftExp
+}
+
+func (p *Parser) noPrefixParseFnError(t token.TokenType) {
+	msg := fmt.Sprintf("no prefix parse function for %s found", t)
+	p.errors = append(p.errors, msg)
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {
@@ -180,6 +186,16 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	return lit
 }
 
+func (p *Parser) parsePrefixExpression() ast.Expression {
+	expression := &ast.PrefixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+	}
+	p.NextToken()
+	expression.Right = p.parseExpression(PREFIX)
+	return expression
+}
+
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
 		l:      l,
@@ -188,8 +204,10 @@ func New(l *lexer.Lexer) *Parser {
 	// pの curToken の位置を動かすためにポインタで用意
 
 	p.prefixParseFn = make(map[token.TokenType]prefixParseFn)
-	p.registerPrefix(token.IDENT, p.parseIdentifier)   // 変数名の関数をセットする
-	p.registerPrefix(token.INT, p.parseIntegerLiteral) // intの関数をセットする
+	p.registerPrefix(token.IDENT, p.parseIdentifier)       // 変数名の関数をセットする
+	p.registerPrefix(token.INT, p.parseIntegerLiteral)     // intの関数をセットする
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)  // !の関数をセットする
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression) // -の関数をセットする
 
 	// 2つトークンを読み込む
 	// curToken と peekToken を読み込んでいる
