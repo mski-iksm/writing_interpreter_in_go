@@ -265,3 +265,208 @@ func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
 
 	return true
 }
+
+func TestParsingInfixExpressions(t *testing.T) {
+	infixTests := []struct {
+		input      string
+		leftValue  int64
+		operator   string
+		rightValue int64
+	}{
+		{"5 + 5;", 5, "+", 5},
+		{"5 - 5;", 5, "-", 5},
+		{"5 * 5;", 5, "*", 5},
+		{"5 / 5;", 5, "/", 5},
+		{"5 > 5;", 5, ">", 5},
+		{"5 < 5;", 5, "<", 5},
+		{"5 == 5;", 5, "==", 5},
+		{"5 != 5;", 5, "!=", 5},
+	}
+
+	for _, tt := range infixTests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("Program do not have enough statements. got=%d", len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+		}
+
+		exp, ok := stmt.Expression.(*ast.InfixExpression)
+		if !ok {
+			t.Fatalf("exp is not *ast.InfixExpression. got=%T", stmt.Expression)
+		}
+
+		if !testIntegerLiteral(t, exp.Left, tt.leftValue) {
+			return
+		}
+
+		if exp.Operator != tt.operator {
+			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.operator, exp.Operator)
+		}
+
+		if !testIntegerLiteral(t, exp.Right, tt.rightValue) {
+			return
+		}
+	}
+}
+
+func TestParsingInfixExpressionsMultipleInput1(t *testing.T) {
+	infixTests := []struct {
+		input            string
+		prioriLeftValue  int64
+		prioriOperator   string
+		prioriRightValue int64
+		operator         string
+		RightValue       int64
+	}{
+		// expは
+		// {RightValue} {operator} ( {prioriLeftValue} {prioriOperator} {prioriRightValue} )
+		// という順で入っている
+		{"5 + 4 * 2;", 4, "*", 2, "+", 5},
+	}
+
+	for _, tt := range infixTests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("Program do not have enough statements. got=%d", len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+		}
+
+		exp, ok := stmt.Expression.(*ast.InfixExpression)
+		if !ok {
+			t.Fatalf("exp is not *ast.InfixExpression. got=%T", stmt.Expression)
+		}
+
+		// 優先度の最も低い RightValue を確認
+		if !testIntegerLiteral(t, exp.Left, tt.RightValue) {
+			return
+		}
+
+		if exp.Operator != tt.operator {
+			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.operator, exp.Operator)
+		}
+
+		// 高優先度部分を分解
+		exp2, ok := exp.Right.(*ast.InfixExpression)
+		if !ok {
+			t.Fatalf("exp2 is not *ast.InfixExpression. got=%T", exp.Right)
+		}
+
+		if !testIntegerLiteral(t, exp2.Left, tt.prioriLeftValue) {
+			return
+		}
+
+		if exp2.Operator != tt.prioriOperator {
+			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.prioriOperator, exp2.Operator)
+		}
+
+		if !testIntegerLiteral(t, exp2.Right, tt.prioriRightValue) {
+			return
+		}
+	}
+}
+
+func TestParsingInfixExpressionsMultipleInput2(t *testing.T) {
+	infixTests := []struct {
+		input            string
+		prioriLeftValue  int64
+		prioriOperator   string
+		prioriRightValue int64
+		operator         string
+		RightValue       int64
+	}{
+		// expは
+		// ( {prioriLeftValue} {prioriOperator} {prioriRightValue} ) {operator} {RightValue}
+		// という順で入っている
+		{"5 * 4 + 2;", 5, "*", 4, "+", 2},
+	}
+
+	for _, tt := range infixTests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("Program do not have enough statements. got=%d", len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+		}
+
+		exp, ok := stmt.Expression.(*ast.InfixExpression)
+		if !ok {
+			t.Fatalf("exp is not *ast.InfixExpression. got=%T", stmt.Expression)
+		}
+
+		// 高優先度部分を分解
+		exp2, ok := exp.Left.(*ast.InfixExpression)
+		if !ok {
+			t.Fatalf("exp2 is not *ast.InfixExpression. got=%T", exp.Right)
+		}
+
+		if !testIntegerLiteral(t, exp2.Left, tt.prioriLeftValue) {
+			return
+		}
+
+		if exp2.Operator != tt.prioriOperator {
+			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.prioriOperator, exp2.Operator)
+		}
+
+		if !testIntegerLiteral(t, exp2.Right, tt.prioriRightValue) {
+			return
+		}
+
+		// 優先度の低い部分を処理
+		if exp.Operator != tt.operator {
+			t.Fatalf("exp.Operator is not '%s'. got=%s", tt.operator, exp.Operator)
+		}
+
+		// 優先度の最も低い RightValue を確認
+		if !testIntegerLiteral(t, exp.Right, tt.RightValue) {
+			return
+		}
+
+	}
+}
+
+func TestOperatorPrecedenceParsing(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"-a*b", "((-a) * b)"},
+		{"-a", "(-a)"},
+		{"-3278*vd+89*dv", "(((-3278) * vd) + (89 * dv))"},
+		{"5<4!=3>4", "((5 < 4) != (3 > 4))"},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		actual_string := program.String()
+		if actual_string != tt.expected {
+			t.Errorf("expected=%q, got=%q", tt.expected, program.String())
+		}
+	}
+}

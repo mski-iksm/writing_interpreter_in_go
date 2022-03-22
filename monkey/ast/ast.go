@@ -163,3 +163,27 @@ func (pe *PrefixExpression) String() string {
 
 	return out.String()
 }
+
+// 中間演算子
+type InfixExpression struct {
+	Token    token.Token // 任意の前置きトークン
+	Left     Expression
+	Operator string
+	Right    Expression
+}
+
+func (ie *InfixExpression) expressionNode() {}
+func (ie *InfixExpression) TokenLiteral() string {
+	return ie.Token.Literal
+	// Token.Literal は もともと全部string
+}
+func (ie *InfixExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(ie.Left.String())
+	out.WriteString(" " + ie.Operator + " ")
+	out.WriteString(ie.Right.String())
+	out.WriteString(")")
+
+	return out.String()
+}
